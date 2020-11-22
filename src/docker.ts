@@ -47,6 +47,22 @@ export class Docker {
     }
   }
 
+  static build(DOCKER_HOST = "tcp://localhost:2375", tag: string, dockerFilePath = ".", args: string[] = []): string {
+    try {
+      const buildArgs = (args ? args : []).map((a) => `--build-arg ${a}`).join(" ");
+      const dockerFile = dockerFilePath ? `-f ${dockerFilePath} .` : ".";
+      const cmd = `docker build ${buildArgs} -t ${tag} ${dockerFile} --no-cache`;
+
+      console.log(">>> ", cmd);
+      return execSync(cmd, {
+        env: { DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      console.error(">>> docker build Hata fırlattı: ", error);
+      throw error;
+    }
+  }
+
   async isWebServerRunningSync(url = "localhost:8204/nef-settings/v1/general") {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -97,8 +113,11 @@ export class Docker {
     return true;
   }
 
-  exec(containerName: string, command: string): string {
+  exec(containerName = this.containerName, command: string): string {
     try {
+      if (!containerName) {
+        throw new Error("Konteyner adı boş olamaz!");
+      }
       const cmd = `docker exec -i ${containerName} ${command}`;
       console.log(">>> cmd: ", cmd);
       return execSync(cmd, {
@@ -122,7 +141,7 @@ export class Docker {
     return true;
   }
 
-  listImages(imageName: undefined | string = undefined): string {
+  listImages(imageName: undefined | string): string {
     try {
       const cmd = `docker images ${imageName ? " | grep " + imageName : ""}`;
       const ls = execSync(cmd, {
@@ -136,7 +155,7 @@ export class Docker {
     }
   }
 
-  listContainers(containerName: undefined | string = undefined): string {
+  listContainers(containerName: undefined | string): string {
     try {
       const cmd = `docker ps -a ${containerName ? " -f name=" + containerName : ""}`;
       const ls = execSync(cmd, {
@@ -149,7 +168,7 @@ export class Docker {
     }
   }
 
-  checkServiceActive(serviceName: string, containerName = this.containerName) {
+  checkServiceActive(serviceName: string, containerName = this.containerName): boolean {
     try {
       const cmd = `docker exec -i ${containerName} service ${serviceName} status | grep " active"`;
       console.log(">>> ", cmd);
@@ -162,7 +181,7 @@ export class Docker {
     return true;
   }
 
-  runContainer(containerName = this.containerName) {
+  runContainer(containerName = this.containerName): boolean {
     try {
       const cmd = `docker start ${containerName}`;
       execSync(cmd, {
@@ -174,13 +193,38 @@ export class Docker {
     return true;
   }
 
-  checkContainerUp(containerName = this.containerName) {
+  removeContainer(containerName = this.containerName): boolean {
+    try {
+      const cmd = `docker rm -f ${containerName}`;
+      execSync(cmd, {
+        env: { DOCKER_HOST: this.DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
+  removeImage(imageName = this.image): boolean {
+    try {
+      const cmd = `docker rmi ${imageName}`;
+      execSync(cmd, {
+        env: { DOCKER_HOST: this.DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
+  checkContainerUp(containerName = this.containerName): boolean {
     try {
       const cmd = `docker ps -f name=${containerName} | grep ${containerName}`;
       execSync(cmd, {
         env: { DOCKER_HOST: this.DOCKER_HOST },
       }).toString();
     } catch (error) {
+      // console.error(error);
       return false;
     }
     return true;
@@ -191,7 +235,7 @@ export class Docker {
     containerName = this.containerName,
     port = this.port,
     volume = this.volume
-  ) {
+  ): boolean {
     try {
       const komut = `docker run -d --privileged --name=${containerName} ${volume} ${port} ${image} `;
       console.log(">>> komut: ", komut);
@@ -210,21 +254,5 @@ export class Docker {
       await this.isWebServerRunningSync(url);
     }
     console.log("Servisin kontrolü bitti");
-  }
-
-  build(tag: string, dockerFilePath = ".", args: string[] = []): string {
-    try {
-      const buildArgs = (args ? args : []).map((a) => `--build-arg ${a}`).join(" ");
-      const dockerFile = dockerFilePath ? `-f ${dockerFilePath} .` : ".";
-      const cmd = `docker build ${buildArgs} -t ${tag} ${dockerFile} --no-cache`;
-
-      console.log(">>> ", cmd);
-      return execSync(cmd, {
-        env: { DOCKER_HOST: this.DOCKER_HOST },
-      }).toString();
-    } catch (error) {
-      console.error(">>> docker build Hata fırlattı: ", error);
-      throw error;
-    }
   }
 }

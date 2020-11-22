@@ -6,7 +6,7 @@ const port = "-p 8204:8204";
 const root = "/c/_Projects/_ÇINAR/_e2e_/gui_nef_nrf_nssf/projects/cinar/cn-nef/e2e";
 let volume = ` -v ${root}/nef-conf/settings.json:/opt/cinar/nef/settings.json`;
 volume += ` -v ${root}/nef-conf/localhost.crt:/opt/cinar/certificate/localhost.crt`;
-volume += ` -v ${root}F/nef-conf/localhost.key:/opt/cinar/certificate/localhost.key`;
+volume += ` -v ${root}/nef-conf/localhost.key:/opt/cinar/certificate/localhost.key`;
 const image = "cinar/nef";
 
 let DOCKER_HOST = "";
@@ -15,10 +15,11 @@ DOCKER_HOST = "tcp://localhost:2375";
 
 // new Docker(image, containerName, port, volume, DOCKER_HOST).listContainers();
 let result = "";
-//result = new Docker(image, null, port, volume, DOCKER_HOST).exec("cjcinar", "ls /opt/cinar/");
 
-result = new Docker(image, null, port, volume, DOCKER_HOST).build("cemtest", "./src/multi_stage_tek_dockerfile");
+result = Docker.build(DOCKER_HOST, image, "./src/multi_stage_tek_dockerfile", ["NF_PAKET_ADI=cnrnef"]);
+console.log(result);
 
+result = new Docker(image, containerName, port, volume, DOCKER_HOST).exec(null, "ls /opt/cinar/");
 console.log(result);
 // console.log(execSync("cd.. && pwd && cd..").toString());
 // console.log(
