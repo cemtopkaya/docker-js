@@ -211,4 +211,20 @@ export class Docker {
     }
     console.log("Servisin kontrolü bitti");
   }
+
+  build(tag: string, dockerFilePath = ".", args: string[] = []): string {
+    try {
+      const buildArgs = (args ? args : []).map((a) => `--build-arg ${a}`).join(" ");
+      const dockerFile = dockerFilePath ? `-f ${dockerFilePath} .` : ".";
+      const cmd = `docker build ${buildArgs} -t ${tag} ${dockerFile} --no-cache`;
+
+      console.log(">>> ", cmd);
+      return execSync(cmd, {
+        env: { DOCKER_HOST: this.DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      console.error(">>> docker build Hata fırlattı: ", error);
+      throw error;
+    }
+  }
 }

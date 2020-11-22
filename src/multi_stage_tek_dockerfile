@@ -1,0 +1,187 @@
+# docker build -t cinar/base -f Dockerfile.cinar.base --no-cache .
+# docker run --name=cp --rmi -d cinar/prod 
+# docker exec -it cp bash
+
+# Çınar ve 3rd Parti kütüphanelerin kurulduğu yansıyı multi-stage yapısında bağlıyoruz
+FROM ubuntu:xenial as ubuntuguncel
+
+# dev | deb | prod > dev: geliştrime, deb: test ortamında hata giderme,  prod: gerçek ortam
+ARG CINAR_ENV=prod
+ARG UCUNCU_PARTI_PAKETLER=paket_3rd
+ARG CINAR_FW=paket_cinarfw
+
+USER root
+WORKDIR /root
+
+RUN echo "deb [trusted=yes] http://192.168.13.47/debs/ amd64/" >> /etc/apt/sources.list 
+RUN apt update 
+
+RUN echo " \
+certificate \
+cinarloggersink \
+cpp-jwt \
+dkms \
+dpdk \
+g3log=1.3.2-20190205 \
+libevent \
+libicu55 \
+libnghttp2-asio \
+libprometheuscpp \
+mongo-c-driver \
+mongo-cxx-driver \
+nlohmann-json \
+python \
+nano \
+curl \
+wget \
+net-tools \
+netcat \
+iputils-ping \
+" > ./$UCUNCU_PARTI_PAKETLER.ortak
+
+RUN echo "\
+boost-all \
+libncurses5 \
+libreadline-dev \
+libsasl2-dev \
+libssl-dev \
+libxml2 \
+nettle-dev \
+uuid \
+" > ./$UCUNCU_PARTI_PAKETLER.prod
+
+RUN echo " \
+ boost-all-dev \
+ libicu55 \
+ libncurses5-dev \
+ libreadline-dev \
+ libsasl2-dev \
+ libssl-dev \
+ libxml2-dev \
+ nettle-dev \
+ uuid-dev \
+" > ./$UCUNCU_PARTI_PAKETLER.dev
+
+RUN echo " \
+cinarframework \
+cinarnnrfaccesstoken.15.201906-Interworking \
+cinarnnrfnfdiscovery.15.201906-Interworking \
+cinarnnrfnfmanagement.15.201906-Interworking \
+cinarnnssfnssaiavailability.15.201906-Interworking \
+cinarnnssfnsselection.15.201906-Interworking \
+cinarnnefnorthboundassessionwithqos.15.201906-Interworking \
+cinarnnefnorthboundcpprovisioning.15.201906-Interworking \
+cinarnnefnorthbounddevicetriggering.15.201906-Interworking \
+cinarnnefnorthboundmonitoringevent.15.201906-Interworking \
+cinarnnefnorthboundpfdmanagement.15.201906-Interworking \
+cinarnnefnorthboundtrafficinfluence.15.201906-Interworking \
+cinarnnefpfdmanagement.15.201906-Interworking \
+cinarnpcfpolicyauthorization.15.201906-Interworking \
+cinarnudrdatarepository.15.201906-Interworking \
+cinarnudmsdm.15.201906-Interworking \
+cinarnamfeventexposure.15.201906-interworking \
+cinarnsmfeventexposure.15.201906-interworking \
+cinarnudmuecm.15.201906-Interworking \
+libcnrcommon \
+libcnrhttp2 \
+libcnr5gmessages \
+" > ./$CINAR_FW.prod
+
+RUN echo " \
+cinarframework.dbg \
+cinarnnrfaccesstoken.15.201906-Interworking.dbg \
+cinarnnrfnfdiscovery.15.201906-Interworking.dbg \
+cinarnnrfnfmanagement.15.201906-Interworking.dbg \
+cinarnnssfnssaiavailability.15.201906-Interworking.dbg \
+cinarnnssfnsselection.15.201906-Interworking.dbg \
+cinarnnefnorthboundassessionwithqos.15.201906-Interworking.dbg \
+cinarnnefnorthboundcpprovisioning.15.201906-Interworking.dbg \
+cinarnnefnorthbounddevicetriggering.15.201906-Interworking.dbg \
+cinarnnefnorthboundmonitoringevent.15.201906-Interworking.dbg \
+cinarnnefnorthboundpfdmanagement.15.201906-Interworking.dbg \
+cinarnnefnorthboundtrafficinfluence.15.201906-Interworking.dbg \
+cinarnnefpfdmanagement.15.201906-Interworking.dbg \
+cinarnpcfpolicyauthorization.15.201906-Interworking.dbg \
+cinarnudrdatarepository.15.201906-Interworking.dbg \
+cinarnudmsdm.15.201906-Interworking.dbg \
+cinarnamfeventexposure.15.201906-interworking.dbg \
+cinarnsmfeventexposure.15.201906-interworking.dbg \
+cinarnudmuecm.15.201906-Interworking.dbg \
+" > ./$CINAR_FW.driver
+
+# RUN echo "" > ./$NF_UCUNCU_PARTI_PAKETLER.dev
+# RUN apt update 
+RUN apt install -y `cat ./$UCUNCU_PARTI_PAKETLER.ortak ./$UCUNCU_PARTI_PAKETLER.$CINAR_ENV ./$CINAR_FW.$CINAR_ENV`
+RUN cd /opt/cinar/lib && for f in *-Interworking.so; do yeni=`echo $f | sed 's/-Interworking\.so/\.so/g'`; mv $f $yeni ; done
+RUN  echo "/opt/cinar/lib" > /etc/ld.so.conf.d/cinar.conf && /sbin/ldconfig
+
+
+FROM ubuntuguncel
+
+#--------------- Miras ile gelenler -------------------------------
+# Aşağıdaki satır FROM ile miras alınan yansıdan geldiği için tekrar eklemeye gerek yok!
+# RUN echo "deb [trusted=yes] http://192.168.13.47/debs/ amd64/" >> /etc/apt/sources.list && \
+# 
+# multi-stage ile farklı bir yansıdaki dosyalar bu yansının içine kopyalanacağı için apt update gereksiz olacak
+# COPY --from=base /var/lib/apt/lists/* /var/lib/apt/lists/
+#-------------------------------------------------------------------
+# RUN echo "deb [trusted=yes] http://192.168.13.47/debs/ amd64/" >> /etc/apt/sources.list
+# COPY --from=base /var/lib/apt/* /var/lib/apt/
+
+# Aşağıdaki hata ve çözümü:
+# debconf: delaying package configuration, since apt-utils is not installed 
+#
+# apt-utils uygulamasını yükledikten sonra diğer apt yüklemelerinde -y komutuna gerek kalmıyor.
+# apt-utils uygulaması DEBIAN_FRONTEND ortam değişkenlerine bakarak diğer yüklemelerin cevaplanmasını sağlıyor.
+# DEBIAN_FRONTEND=noninteractive argumanı tanımlıyor, apt-utils yüklüyoruz
+ENV DEBIAN_FRONTEND=noninteractive
+# RUN apt install --assume-yes apt-utils
+
+ARG NF_PAKET_ADI=cnrnssf
+ENV NF_PAKET_ACILACAK_DIZIN=paket
+ENV NF_PAKET_KOPYALANACAK_DIZIN=/root
+
+USER root
+WORKDIR /root
+
+RUN apt show $NF_PAKET_ADI
+RUN apt download $NF_PAKET_ADI
+RUN apt-cache show ${NF_PAKET_ADI} | grep Filename | cut -d' ' -f2 | head -1 > nf_paket_filename.txt
+
+###----------------------------------------------------------------------------------------------------------------------
+### NF Paketini indir
+# RUN apt download $NF_PAKET_ADI
+#
+### NF Paketinin dosya adının txt dosyasına yaz ve sonraki RUN komutlarında yeni kaplar oluşturulduğunda dosyadan okuyarak işle
+# RUN apt-cache show ${NF_PAKET_ADI} | grep Filename | cut -d' ' -f2 | head -1 > nf_paket_filename.txt
+#
+### NF Paketini dizine aç, postinst dosyasını değiştir
+# RUN dpkg-deb -R $(cat nf_paket_filename.txt) $NF_PAKET_ACILACAK_DIZIN  && \
+#     cd $NF_PAKET_ACILACAK_DIZIN/DEBIAN && \
+#     `awk '{gsub("^systemctl (daemon-reload|start|stop).*", "if [ ! -n $container ]; then "$0"; fi")}1' ./postinst > postinst.yeni` && \
+#     chmod 755 postinst.yeni && mv postinst.yeni postinst && \
+#
+### NF Paketini .deb dosyası olarak yapılandır
+# RUN dpkg-deb -b $NF_PAKET_ACILACAK_DIZIN $(cat nf_paket_filename.txt)
+### NF deb paketini kur
+# RUN cd $NF_PAKET_KOPYALANACAK_DIZIN && dpkg -i $(cat nf_paket_filename.txt)
+### NF Paketini açtığın dizini sil
+# RUN rm $(cat nf_paket_filename.txt) && rm -r $NF_PAKET_KOPYALANACAK_DIZIN
+###----------------------------------------------------------------------------------------------------------------------
+
+RUN dpkg-deb -R $(cat nf_paket_filename.txt) $NF_PAKET_ACILACAK_DIZIN  && \
+    cd $NF_PAKET_ACILACAK_DIZIN/DEBIAN && \
+    `awk '{gsub("^systemctl (daemon-reload|start|stop).*", "if [ ! -n $container ]; then "$0"; fi")}1' ./postinst > postinst.yeni` && \
+    chmod 755 postinst.yeni && mv postinst.yeni postinst && \
+    cd ../..
+### NF Paketin olarak yapılandır
+RUN dpkg-deb -b $NF_PAKET_ACILACAK_DIZIN $(cat nf_paket_filename.txt)
+### NF deb paketini kur
+RUN cd $NF_PAKET_KOPYALANACAK_DIZIN && dpkg -i $(cat nf_paket_filename.txt)
+### NF Paketini açtığın dizini sil
+RUN rm $(cat nf_paket_filename.txt) && rm -r $NF_PAKET_KOPYALANACAK_DIZIN
+
+# .bashrc bir şekilde gitmişse yeniden varsayılanı yaratıyoruz.
+RUN if [ ! -f "/root/.bashrc" ]; then /bin/cp /etc/skel/.bashrc ~/; fi
+
+ENTRYPOINT ["/sbin/init"]

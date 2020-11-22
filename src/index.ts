@@ -10,12 +10,14 @@ volume += ` -v ${root}F/nef-conf/localhost.key:/opt/cinar/certificate/localhost.
 const image = "cinar/nef";
 
 let DOCKER_HOST = "";
-DOCKER_HOST = "tcp://localhost:2375";
 DOCKER_HOST = "tcp://192.168.13.183:2375";
+DOCKER_HOST = "tcp://localhost:2375";
 
 // new Docker(image, containerName, port, volume, DOCKER_HOST).listContainers();
 let result = "";
-result = new Docker(image, null, port, volume, DOCKER_HOST).exec("cjcinar", "ls /opt/cinar/");
+//result = new Docker(image, null, port, volume, DOCKER_HOST).exec("cjcinar", "ls /opt/cinar/");
+
+result = new Docker(image, null, port, volume, DOCKER_HOST).build("cemtest", "./src/multi_stage_tek_dockerfile");
 
 console.log(result);
 // console.log(execSync("cd.. && pwd && cd..").toString());
