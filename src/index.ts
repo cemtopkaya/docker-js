@@ -16,14 +16,18 @@ DOCKER_HOST = "tcp://localhost:2375";
 // new Docker(image, containerName, port, volume, DOCKER_HOST).listContainers();
 let result = "";
 
-result = Docker.build(DOCKER_HOST, image, "./src/multi_stage_tek_dockerfile", ["NF_PAKET_ADI=cnrnef"]);
-console.log(result);
+// result = Docker.build(DOCKER_HOST, image, "./src/multi_stage_tek_dockerfile", ["NF_PAKET_ADI=cnrnef"]);
+// console.log(result);
 
-result = new Docker(image, containerName, port, volume, DOCKER_HOST).exec(null, "ls /opt/cinar/");
-console.log(result);
+const ctr = new Docker(image, containerName, port, volume, DOCKER_HOST);
+console.log(ctr.createAndRunContainer());
+console.log(ctr.runWebServer("cnrnef", "localhost:8204/nef-settings/v1/general"));
+
+// result = ctr.exec(undefined, "ls /opt/cinar/");
+// console.log(result);
 // console.log(execSync("cd.. && pwd && cd..").toString());
 // console.log(
-//   new Docker(null, null, null, null, "tcp://192.168.13.183:2375")
+//   new Docker(undefined, undefined, undefined, undefined, "tcp://192.168.13.183:2375")
 //     // .checkContainerExist("dream")
 //     .listContainers()
 // );

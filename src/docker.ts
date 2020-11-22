@@ -39,12 +39,12 @@ export class Docker {
     public volume: string | null,
     public DOCKER_HOST: string = "tcp://localhost:2375"
   ) {
-    if (containerName && !this.checkContainerExist()) {
-      this.createAndRunContainer();
-    }
-    if (containerName && !this.checkContainerUp()) {
-      this.runContainer();
-    }
+    // if (containerName && !this.checkContainerExist()) {
+    //   this.createAndRunContainer();
+    // }
+    // if (containerName && !this.checkContainerUp()) {
+    //   this.runContainer();
+    // }
   }
 
   static build(DOCKER_HOST = "tcp://localhost:2375", tag: string, dockerFilePath = ".", args: string[] = []): string {
@@ -115,6 +115,7 @@ export class Docker {
 
   exec(containerName = this.containerName, command: string): string {
     try {
+      console.log("Konteyner adı: ", containerName);
       if (!containerName) {
         throw new Error("Konteyner adı boş olamaz!");
       }
@@ -193,12 +194,28 @@ export class Docker {
     return true;
   }
 
+  removeContainerByForce(containerName = this.containerName): boolean {
+    try {
+      if (this.checkContainerUp(containerName)) {
+        const cmd = `docker rm -f ${containerName}`;
+        execSync(cmd, {
+          env: { DOCKER_HOST: this.DOCKER_HOST },
+        }).toString();
+      }
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
   removeContainer(containerName = this.containerName): boolean {
     try {
-      const cmd = `docker rm -f ${containerName}`;
-      execSync(cmd, {
-        env: { DOCKER_HOST: this.DOCKER_HOST },
-      }).toString();
+      if (this.checkContainerExist(containerName)) {
+        const cmd = `docker rm ${containerName}`;
+        execSync(cmd, {
+          env: { DOCKER_HOST: this.DOCKER_HOST },
+        }).toString();
+      }
     } catch (error) {
       return false;
     }
@@ -230,6 +247,40 @@ export class Docker {
     return true;
   }
 
+  startContainer(containerName = this.containerName): boolean {
+    try {
+      if (this.checkContainerExist(containerName)) {
+        const komut = `docker start ${containerName}`;
+        console.log(">>> komut: ", komut);
+        const output = execSync(komut, {
+          env: { DOCKER_HOST: this.DOCKER_HOST },
+        });
+        console.log(">>>>> Docker run status: " + output);
+      }
+    } catch (error) {
+      // console.error(">>> Konteyner başlatılırken hata: ", error);
+      return false;
+    }
+    return true;
+  }
+
+  stopContainer(containerName = this.containerName): boolean {
+    try {
+      if (this.checkContainerUp(containerName)) {
+        const komut = `docker stop ${containerName}`;
+        console.log(">>> komut: ", komut);
+        const output = execSync(komut, {
+          env: { DOCKER_HOST: this.DOCKER_HOST },
+        });
+        console.log(">>>>> Docker run status: " + output);
+      }
+    } catch (error) {
+      // console.error(">>> Konteyner durdurulurken hata: ", error);
+      return false;
+    }
+    return true;
+  }
+
   createAndRunContainer(
     image = this.image,
     containerName = this.containerName,
@@ -237,12 +288,16 @@ export class Docker {
     volume = this.volume
   ): boolean {
     try {
-      const komut = `docker run -d --privileged --name=${containerName} ${volume} ${port} ${image} `;
-      console.log(">>> komut: ", komut);
-      const output = execSync(komut, {
-        env: { DOCKER_HOST: this.DOCKER_HOST },
-      });
-      console.log(">>>>> Docker run status: " + output);
+      if (!this.checkContainerExist(containerName)) {
+        const komut = `docker run -d --privileged --name=${containerName} ${volume} ${port} ${image} `;
+        console.log(">>> komut: ", komut);
+        const output = execSync(komut, {
+          env: { DOCKER_HOST: this.DOCKER_HOST },
+        });
+        console.log(">>>>> Docker run status: " + output);
+      } else if (!this.checkContainerUp(containerName)) {
+        this.startContainer(containerName);
+      }
     } catch (error) {
       return false;
     }
