@@ -1,5 +1,6 @@
 import * as https from "https";
 import { execSync } from "child_process";
+import * as path from "path";
 
 declare global {
   interface String {
@@ -54,12 +55,30 @@ export class Docker {
       const cmd = `docker build ${buildArgs} -t ${tag} ${dockerFile} --no-cache`;
 
       console.log(">>> ", cmd);
-      return cmd;
-      // return execSync(cmd, { env: { DOCKER_HOST } }).toString();
+      return execSync(cmd, { env: { DOCKER_HOST } }).toString();
     } catch (error) {
       console.error(">>> docker build Hata fırlattı: ", error);
       throw error;
     }
+  }
+
+  static async prepareContainerAndNBI(
+    DOCKER_HOST: string,
+    imageName: string,
+    dockerFilePath: string,
+    imageArgs: string[],
+    containerName: string,
+    port: string,
+    volumes: Map<string, string>,
+    serviceAndPackageName: string,
+    nbiTestUrl: string
+  ) {
+    if (!Docker.checkImageExist(imageName, DOCKER_HOST)) {
+      Docker.build(DOCKER_HOST, imageName, dockerFilePath, imageArgs);
+    }
+    const cnef = new Docker(imageName, containerName, port, volumes);
+    cnef.createAndRunContainer();
+    await cnef.runWebServer(serviceAndPackageName, nbiTestUrl);
   }
 
   async isWebServerRunningSync(url = "localhost:8204/nef-settings/v1/general") {
@@ -129,11 +148,23 @@ export class Docker {
     }
   }
 
-  checkContainerExist(containerName = this.containerName): boolean {
+  static checkContainerExist(containerName: string, DOCKER_HOST: string): boolean {
     try {
       const cmd = `docker ps -a -f name=${containerName} | grep ${containerName}`;
       execSync(cmd, {
-        env: { DOCKER_HOST: this.DOCKER_HOST },
+        env: { DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
+  static checkImageExist(imageName: string, DOCKER_HOST: string): boolean {
+    try {
+      const cmd = `docker image inspect ${imageName}`;
+      execSync(cmd, {
+        env: { DOCKER_HOST },
       }).toString();
     } catch (error) {
       return false;
@@ -209,7 +240,7 @@ export class Docker {
 
   removeContainer(containerName = this.containerName): boolean {
     try {
-      if (this.checkContainerExist(containerName)) {
+      if (Docker.checkContainerExist(containerName, this.DOCKER_HOST)) {
         const cmd = `docker rm ${containerName}`;
         execSync(cmd, {
           env: { DOCKER_HOST: this.DOCKER_HOST },
@@ -248,7 +279,7 @@ export class Docker {
 
   startContainer(containerName = this.containerName): boolean {
     try {
-      if (this.checkContainerExist(containerName)) {
+      if (Docker.checkContainerExist(containerName, this.DOCKER_HOST)) {
         const komut = `docker start ${containerName}`;
         console.log(">>> komut: ", komut);
         const output = execSync(komut, {
@@ -287,11 +318,17 @@ export class Docker {
     volume = this.volume || new Map([])
   ): boolean {
     try {
+      console.log("----------------------------");
+      console.log(execSync("echo %cd%").toString());
+      console.log("var currentPath = process.cwd(): ", process.cwd());
+      console.log("console.log(__dirname):", __dirname);
+      console.log(path.dirname(__filename));
+      console.log("----------------------------");
       const isWin = process.platform === "win32";
       const volumeStr = Array.from(volume.keys())
         .map((k) => `-v "${isWin ? k.replace("$(pwd)", "%cd%") : k.replace("%cd%", "$(pwd)")}:${volume.get(k)}"`)
         .join(" ");
-      if (!this.checkContainerExist(containerName)) {
+      if (!Docker.checkContainerExist(containerName, this.DOCKER_HOST)) {
         const komut = `docker run  ${volumeStr} -d --privileged --name=${containerName} ${port} ${image} `;
         console.log(">>> komut: ", komut);
         const output = execSync(komut, {
@@ -309,7 +346,7 @@ export class Docker {
     return true;
   }
 
-  async runWebServer(serviceName = "cnrnef", url = "localhost:8204/nef-settings/v1/general") {
+  async runWebServer(serviceName = "cnrnef", url = "localhost:8204/nef-settings/v1/general"): Promise<void> {
     if (this.checkServiceActive(serviceName)) {
       await this.isWebServerRunningSync(url);
     }
