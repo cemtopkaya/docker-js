@@ -36,7 +36,7 @@ export class Docker {
     public image: string | null,
     public containerName: string | null,
     public port: string | null,
-    public volume: string | null,
+    public volume: Map<string, string> | null,
     public DOCKER_HOST: string = "tcp://localhost:2375"
   ) {
     // if (containerName && !this.checkContainerExist()) {
@@ -54,9 +54,8 @@ export class Docker {
       const cmd = `docker build ${buildArgs} -t ${tag} ${dockerFile} --no-cache`;
 
       console.log(">>> ", cmd);
-      return execSync(cmd, {
-        env: { DOCKER_HOST },
-      }).toString();
+      return cmd;
+      // return execSync(cmd, { env: { DOCKER_HOST } }).toString();
     } catch (error) {
       console.error(">>> docker build Hata fırlattı: ", error);
       throw error;
@@ -285,20 +284,26 @@ export class Docker {
     image = this.image,
     containerName = this.containerName,
     port = this.port,
-    volume = this.volume
+    volume = this.volume || new Map([])
   ): boolean {
     try {
+      const isWin = process.platform === "win32";
+      const volumeStr = Array.from(volume.keys())
+        .map((k) => `-v "${isWin ? k.replace("$(pwd)", "%cd%") : k.replace("%cd%", "$(pwd)")}:${volume.get(k)}"`)
+        .join(" ");
       if (!this.checkContainerExist(containerName)) {
-        const komut = `docker run -d --privileged --name=${containerName} ${volume} ${port} ${image} `;
+        const komut = `docker run  ${volumeStr} -d --privileged --name=${containerName} ${port} ${image} `;
         console.log(">>> komut: ", komut);
         const output = execSync(komut, {
           env: { DOCKER_HOST: this.DOCKER_HOST },
+          // stdio: "ignore",
         });
-        console.log(">>>>> Docker run status: " + output);
+        console.log(">>>>> Docker run status: " + output.toString());
       } else if (!this.checkContainerUp(containerName)) {
         this.startContainer(containerName);
       }
     } catch (error) {
+      console.log(">>>>> Docker run error: ", error);
       return false;
     }
     return true;

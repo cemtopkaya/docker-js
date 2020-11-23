@@ -7,6 +7,11 @@ const root = "/c/_Projects/_ÇINAR/_e2e_/gui_nef_nrf_nssf/projects/cinar/cn-nef/
 let volume = ` -v ${root}/nef-conf/settings.json:/opt/cinar/nef/settings.json`;
 volume += ` -v ${root}/nef-conf/localhost.crt:/opt/cinar/certificate/localhost.crt`;
 volume += ` -v ${root}/nef-conf/localhost.key:/opt/cinar/certificate/localhost.key`;
+const volumes = new Map<string, string>([
+  ["$(pwd)/projects/cinar/cn-nef/e2e/nef-conf/settings.json", "/opt/cinar/nef/settings.json"],
+  ["$(pwd)/projects/cinar/cn-nef/e2e/nef-conf/localhost.crt", "/opt/cinar/certificate/localhost.crt"],
+  ["$(pwd)/projects/cinar/cn-nef/e2e/nef-conf/localhost.key", "/opt/cinar/certificate/localhost.key"],
+]);
 const image = "cinar/nef";
 
 let DOCKER_HOST = "";
@@ -19,7 +24,7 @@ let result = "";
 // result = Docker.build(DOCKER_HOST, image, "./src/multi_stage_tek_dockerfile", ["NF_PAKET_ADI=cnrnef"]);
 // console.log(result);
 
-const ctr = new Docker(image, containerName, port, volume, DOCKER_HOST);
+const ctr = new Docker(image, containerName, port, volumes, DOCKER_HOST);
 console.log(ctr.createAndRunContainer());
 console.log(ctr.runWebServer("cnrnef", "localhost:8204/nef-settings/v1/general"));
 
