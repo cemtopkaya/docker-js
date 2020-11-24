@@ -34,7 +34,7 @@ String.prototype.grep = function (this: string, arg: string) {
 
 export class Docker {
   constructor(
-    public image: string | null,
+    public imageName: string | null,
     public containerName: string | null,
     public port: string | null,
     public volume: Map<string, string> | null,
@@ -63,22 +63,74 @@ export class Docker {
   }
 
   static async prepareContainerAndNBI(
-    DOCKER_HOST: string,
-    imageName: string,
     dockerFilePath: string,
     imageArgs: string[],
+    serviceAndPackageName: string,
+    nbiTestUrl: string,
+    dockerNf: Docker
+  );
+  static async prepareContainerAndNBI(
+    dockerFilePath: string,
+    imageArgs: string[],
+    serviceAndPackageName: string,
+    nbiTestUrl: string,
+    DOCKER_HOST: string,
+    imageName: string,
     containerName: string,
     port: string,
-    volumes: Map<string, string>,
+    volumes: Map<string, string>
+  );
+  static async prepareContainerAndNBI(
+    dockerFilePath: string,
+    imageArgs: string[],
     serviceAndPackageName: string,
-    nbiTestUrl: string
+    nbiTestUrl: string,
+    DOCKER_HOST?: string | Docker,
+    imageName?: string,
+    containerName?: string,
+    port?: string,
+    volumes?: Map<string, string>
   ) {
-    if (!Docker.checkImageExist(imageName, DOCKER_HOST)) {
-      Docker.build(DOCKER_HOST, imageName, dockerFilePath, imageArgs);
+    let container: Docker;
+    if (typeof DOCKER_HOST === "string" && imageName && containerName && port && volumes) {
+      container = new Docker(imageName, containerName, port, volumes);
+    } else {
+      container = DOCKER_HOST as Docker;
     }
-    const cnef = new Docker(imageName, containerName, port, volumes);
-    cnef.createAndRunContainer();
-    await cnef.runWebServer(serviceAndPackageName, nbiTestUrl);
+
+    if (!Docker.checkImageExist(container.imageName, container.DOCKER_HOST)) {
+      console.log("----------- Image yok!");
+      Docker.build(container.DOCKER_HOST, container.imageName, dockerFilePath, imageArgs);
+    }
+
+    console.log("----------- Image var!");
+    container.createAndRunContainer();
+    await container.runWebServer(serviceAndPackageName, nbiTestUrl);
+  }
+
+  static checkContainerExist(containerName: string, DOCKER_HOST: string): boolean {
+    try {
+      const cmd = `docker ps -a -f name=${containerName} | grep ${containerName}`;
+      execSync(cmd, {
+        env: { DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
+  static checkImageExist(imageName: string, DOCKER_HOST: string): boolean {
+    try {
+      const cmd = `docker image inspect ${imageName}`;
+      execSync(cmd, {
+        env: { DOCKER_HOST },
+      }).toString();
+    } catch (error) {
+      console.error(">>> Yansı kontrolünde istisna: ", error);
+      return false;
+    }
+    return true;
   }
 
   async isWebServerRunningSync(url = "localhost:8204/nef-settings/v1/general") {
@@ -146,30 +198,6 @@ export class Docker {
       console.error(error.message);
       throw error;
     }
-  }
-
-  static checkContainerExist(containerName: string, DOCKER_HOST: string): boolean {
-    try {
-      const cmd = `docker ps -a -f name=${containerName} | grep ${containerName}`;
-      execSync(cmd, {
-        env: { DOCKER_HOST },
-      }).toString();
-    } catch (error) {
-      return false;
-    }
-    return true;
-  }
-
-  static checkImageExist(imageName: string, DOCKER_HOST: string): boolean {
-    try {
-      const cmd = `docker image inspect ${imageName}`;
-      execSync(cmd, {
-        env: { DOCKER_HOST },
-      }).toString();
-    } catch (error) {
-      return false;
-    }
-    return true;
   }
 
   listImages(imageName: undefined | string): string {
@@ -252,7 +280,7 @@ export class Docker {
     return true;
   }
 
-  removeImage(imageName = this.image): boolean {
+  removeImage(imageName = this.imageName): boolean {
     try {
       const cmd = `docker rmi ${imageName}`;
       execSync(cmd, {
@@ -312,7 +340,7 @@ export class Docker {
   }
 
   createAndRunContainer(
-    image = this.image,
+    image = this.imageName,
     containerName = this.containerName,
     port = this.port,
     volume = this.volume || new Map([])
@@ -346,7 +374,7 @@ export class Docker {
     return true;
   }
 
-  async runWebServer(serviceName = "cnrnef", url = "localhost:8204/nef-settings/v1/general"): Promise<void> {
+  async runWebServer(serviceName = "cnrnef", url = "localhost:8204/nef-settings/v1/general") {
     if (this.checkServiceActive(serviceName)) {
       await this.isWebServerRunningSync(url);
     }
